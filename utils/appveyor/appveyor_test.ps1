@@ -46,8 +46,10 @@ function Invoke-TE($logfile) {
 
 function Save-Artifacts($testLogFile, $testResults) {
     ConvertTo-Json $testResults | Out-File "$env:HLSL_BLD_DIR\testresults.json"
-    Push-AppveyorArtifact $testLogFile
-    Push-AppveyorArtifact $testResults
+    #Push-AppveyorArtifact $testLogFile
+    #Push-AppveyorArtifact $testResults
+    appveyor PushArtifact $testLogFile -Verbosity Normal
+    appveyor PushArtifact $testResults -Verbosity Normal
 }
 
 $logfile = "$env:HLSL_BLD_DIR\testresults.xml"
@@ -59,7 +61,6 @@ Write-Host "Uploading results to AppVeyor"
 Invoke-AppveyorTestsRestMethod $testResults
 Write-Host "Saving Artifacts"
 Save-Artifacts $logFile $testResults
-appveyor help
 Write-Host "Done"
 
 exit $teExitCode
