@@ -45,11 +45,10 @@ function Invoke-TE($logfile) {
 }
 
 function Save-Artifacts($testLogFile, $testResults) {
-    ConvertTo-Json $testResults | Out-File "$env:HLSL_BLD_DIR\testresults.json"
-    #Push-AppveyorArtifact $testLogFile
-    #Push-AppveyorArtifact $testResults
+    $jsonFile = "$env:HLSL_BLD_DIR\testresults.json"
+    ConvertTo-Json $testResults | Out-File $jsonFile
     appveyor PushArtifact $testLogFile -Verbosity Normal
-    appveyor PushArtifact $testResults -Verbosity Normal
+    appveyor PushArtifact $jsonFile    -Verbosity Normal
 }
 
 $logfile = "$env:HLSL_BLD_DIR\testresults.xml"
