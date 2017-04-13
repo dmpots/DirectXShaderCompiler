@@ -44,6 +44,12 @@ function Invoke-TE($logfile) {
     return $p.ExitCode
 }
 
+function Save-Artifacts($testLogFile, $testResults) {
+    ConvertTo-Json $testResults | Out-File "$env:HLSL_BLD_DIR\testresults.json"
+    Push-AppveyorArtifact $testLogFile
+    Push-AppveyorArtifact $testResults
+}
+
 $logfile = "$env:HLSL_BLD_DIR\testresults.xml"
 Write-Host "Running taef tests"
 $teExitCode = Invoke-TE $logfile
@@ -51,6 +57,9 @@ Write-Host "Parsing taef tests"
 $testResults = Get-TaefResults $logfile
 Write-Host "Uploading results to AppVeyor"
 Invoke-AppveyorTestsRestMethod $testResults
+Write-Host "Saving Artifacts"
+Save-Artifacts $logFile $testResults
+appveyor help
 Write-Host "Done"
 
 exit $teExitCode
