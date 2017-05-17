@@ -28,7 +28,7 @@ using namespace hlsl;
 namespace {
 class OutputWrite {
 public:
-  OutputWrite(CallInst *call)
+  explicit OutputWrite(CallInst *call)
     : m_Call(call)
   {
     assert(DxilInst_StoreOutput(call) || DxilInst_StorePatchConstant(call));
@@ -43,6 +43,27 @@ public:
     DM.GetOutputSignature().GetElement(GetSignatureID());
   }
 
+  CallInst *GetStore() const {
+    return m_Call;
+  }
+
+  Value *GetValue() const {
+    return m_Call->getOperand(ValueIndex);
+  }
+
+  Value *GetRow() const {
+    return m_Call->getOperand(RowIndex);
+  }
+  
+  Value *GetColumn() const {
+    return m_Call->getOperand(ColumnIndex);
+  }
+
+  void DeleteStore() {
+    m_Call->eraseFromParent();
+    m_Call = nullptr;
+  }
+
 private:
   CallInst *m_Call;
   enum OperandIndex {
@@ -55,7 +76,7 @@ private:
 
 class OutputElement {
 public:
-  OutputElement(const DxilSignatureElement &outputElement)
+  explicit OutputElement(const DxilSignatureElement &outputElement)
     : m_OutputElement(outputElement)
     , m_Rows(outputElement.GetRows())
     , m_Columns(outputElement.GetCols())
@@ -144,109 +165,48 @@ public:
 
   bool runOnFunction(Function &F) override;
 
-#if 0
-  bool runOnFunction(Function &F) override {
-    DxilModule &DM = M.GetOrCreateDxilModule();
-    // Skip pass thru entry.
-    if (!DM.GetEntryFunction())
-      return false;
-
-    hlsl::OP *hlslOP = DM.GetOP();
-
-    ArrayRef<llvm::Function *> storeOutputs = hlslOP->GetOpFuncList(DXIL::OpCode::StoreOutput);
-    DenseMap<Value *, Type *> dynamicSigSet;
-    for (Function *F : storeOutputs) {
-      // Skip overload not used.
-      if (!F)
-        continue;
-      for (User *U : F->users()) {
-        CallInst *CI = cast<CallInst>(U);
-        DxilInst_StoreOutput store(CI);
-        // Save dynamic indeed sigID.
-        if (!isa<ConstantInt>(store.get_rowIndex())) {
-          Value * sigID = store.get_outputtSigId();
-          dynamicSigSet[sigID] = store.get_value()->getType();
-        }
-      }
-    }
-
-    if (dynamicSigSet.empty())
-      return false;
-
-    Function *Entry = DM.GetEntryFunction();
-    IRBuilder<> Builder(Entry->getEntryBlock().getFirstInsertionPt());
-
-    DxilSignature &outputSig = DM.GetOutputSignature();
-    Value *opcode =
-        Builder.getInt32(static_cast<unsigned>(DXIL::OpCode::StoreOutput));
-    Value *zero = Builder.getInt32(0);
-
-    for (auto sig : dynamicSigSet) {
-      Value *sigID = sig.first;
-      Type *EltTy = sig.second;
-      unsigned ID = cast<ConstantInt>(sigID)->getLimitedValue();
-      DxilSignatureElement &sigElt = outputSig.GetElement(ID);
-      unsigned row = sigElt.GetRows();
-      unsigned col = sigElt.GetCols();
-      Type *AT = ArrayType::get(EltTy, row);
-
-      std::vector<Value *> tmpSigElts(col);
-      for (unsigned c = 0; c < col; c++) {
-        Value *newCol = Builder.CreateAlloca(AT);
-        tmpSigElts[c] = newCol;
-      }
-
-      Function *F = hlslOP->GetOpFunc(DXIL::OpCode::StoreOutput, EltTy);
-      // Change store output to store tmpSigElts.
-      ReplaceDynamicOutput(tmpSigElts, sigID, zero, F);
-      // Store tmpSigElts to Output before return.
-      StoreTmpSigToOutput(tmpSigElts, row, opcode, sigID, F, Entry);
-    }
-
-    return true;
-  }
-#endif
 private:
-  typedef std::vector<OutputWrite> CallVec;
-  typedef std::vector<ReturnInst *> RetVec;
+  typedef std::vector<OutputWrite> OutputVec;
   typedef std::unordered_map<unsigned, OutputElement>  OutputMap;
-  CallVec collectOutputStores(Function &F);
-  OutputMap generateOutputMap(const CallVec &calls, DxilModule &DM);
+  OutputVec collectOutputStores(Function &F);
+  OutputMap generateOutputMap(const OutputVec &calls, DxilModule &DM);
   void createTempAllocas(OutputMap &map, IRBuilder<> &builder);
-  void insertTempOutputStores(const CallVec &calls, const OutputMap &map, IRBuilder<> &builder);
+  void insertTempOutputStores(const OutputVec &calls, const OutputMap &map, IRBuilder<> &builder);
+  void insertFinalOutputStores(Function &F, const OutputMap &outputMap, IRBuilder<> &builder, DxilModule &DM);
+  void removeOriginalOutputStores(OutputVec &outputStores);
 };
 
 bool DxilPreserveAllOutputs::runOnFunction(Function &F) {
   DxilModule &DM = F.getParent()->GetOrCreateDxilModule();
   
-  CallVec outputStores = collectOutputStores(F);
+  OutputVec outputStores = collectOutputStores(F);
   if (outputStores.empty())
     return false;
 
-  IRBuilder<> builder(DM.GetCtx());
+  IRBuilder<> builder(F.getEntryBlock().getFirstInsertionPt());
   OutputMap outputMap = generateOutputMap(outputStores, DM);
   createTempAllocas(outputMap, builder);
   insertTempOutputStores(outputStores, outputMap, builder);
-  //insertFinalOutputStores(outputStores, outputMap);
-  //removeOriginalOutputStores(outputStores);
+  insertFinalOutputStores(F,outputMap, builder, DM);
+  removeOriginalOutputStores(outputStores);
 
   return false;
 }
 
-DxilPreserveAllOutputs::CallVec DxilPreserveAllOutputs::collectOutputStores(Function &F) {
-  CallVec calls;
+DxilPreserveAllOutputs::OutputVec DxilPreserveAllOutputs::collectOutputStores(Function &F) {
+  OutputVec calls;
   for (inst_iterator I = inst_begin(F), E = inst_end(F); I != E; ++I) {
     Instruction *inst = &*I;
     DxilInst_StoreOutput storeOutput(inst);
     DxilInst_StorePatchConstant storePatch(inst);
 
     if (storeOutput || storePatch)
-      calls.push_back(cast<CallInst>(inst));
+      calls.emplace_back(cast<CallInst>(inst));
   }
   return calls;
 }
 
-DxilPreserveAllOutputs::OutputMap DxilPreserveAllOutputs::generateOutputMap(const CallVec &calls, DxilModule &DM) {
+DxilPreserveAllOutputs::OutputMap DxilPreserveAllOutputs::generateOutputMap(const OutputVec &calls, DxilModule &DM) {
   OutputMap map;
   for (const OutputWrite &output : calls) {
     if (map.count(output.GetSignatureID()))
@@ -254,75 +214,57 @@ DxilPreserveAllOutputs::OutputMap DxilPreserveAllOutputs::generateOutputMap(cons
 
     map.emplace(output.GetSignatureElement(DM));
   }
+
+  return map;
 }
 
-void DxilPreserveAllOutputs::createTempAllocas(OutputMap &map, IRBuilder<> &builder)
+void DxilPreserveAllOutputs::createTempAllocas(OutputMap &outputMap, IRBuilder<> &builder)
 {
-  for (auto &iter: map) {
+  for (auto &iter: outputMap) {
     OutputElement &output = iter.second;
     output.CreateAlloca(builder);
   }
 }
 
-void DxilPreserveAllOutputs::insertTempOutputStores(const CallVec &calls, const OutputMap &map, IRBuilder<>& builder)
+void DxilPreserveAllOutputs::insertTempOutputStores(const OutputVec &writes, const OutputMap &map, IRBuilder<>& builder)
 {
-  for (const OutputWrite& outputWrite : calls) {
-    auto &iter = map.find(outputWrite.GetSignatureID());
+  for (const OutputWrite& outputWrite : writes) {
+    const auto &iter = map.find(outputWrite.GetSignatureID());
     assert(iter != map.end());
     const OutputElement &output = iter->second;
 
-    builder.SetInsertPoint(outputWrite.getStore());
-    output.StoreTemp()
+    builder.SetInsertPoint(outputWrite.GetStore());
+    output.StoreTemp(builder, outputWrite.GetRow(), outputWrite.GetColumn(), outputWrite.GetValue());
   }
 }
 
-#if 0
-void DxilEliminateOutputDynamicIndexing::ReplaceDynamicOutput(
-    ArrayRef<Value *> tmpSigElts, Value *sigID, Value *zero, Function *F) {
-  for (auto it = F->user_begin(); it != F->user_end();) {
-    CallInst *CI = cast<CallInst>(*(it++));
-    DxilInst_StoreOutput store(CI);
-    if (sigID == store.get_outputtSigId()) {
-      Value *col = store.get_colIndex();
-      unsigned c = cast<ConstantInt>(col)->getLimitedValue();
-      Value *tmpSigElt = tmpSigElts[c];
-      IRBuilder<> Builder(CI);
-      Value *r = store.get_rowIndex();
-      // Store to tmpSigElt.
-      Value *GEP = Builder.CreateInBoundsGEP(tmpSigElt, {zero, r});
-      Builder.CreateStore(store.get_value(), GEP);
-      // Remove store output.
-      CI->eraseFromParent();
+void DxilPreserveAllOutputs::insertFinalOutputStores(Function &F, const OutputMap & outputMap, IRBuilder<>& builder, DxilModule & DM)
+{
+  // Find all return instructions.
+  SmallVector<ReturnInst *, 4> returns;
+  for (inst_iterator I = inst_begin(F), E = inst_end(F); I != E; ++I) {
+    Instruction *inst = &*I;
+    if (ReturnInst *ret = dyn_cast<ReturnInst>(inst))
+      returns.push_back(ret);
+  }
+
+  // Write all outputs before each return. 
+  for (ReturnInst *ret : returns) {
+    for (const auto &iter : outputMap) {
+      const OutputElement &output = iter.second;
+      builder.SetInsertPoint(ret);
+      output.StoreOutput(builder, DM);
     }
   }
 }
 
-void DxilEliminateOutputDynamicIndexing::StoreTmpSigToOutput(
-    ArrayRef<Value *> tmpSigElts, unsigned row, Value *opcode, Value *sigID,
-    Function *StoreOutput, Function *Entry) {
-  Value *args[] = {opcode, sigID, /*row*/ nullptr, /*col*/ nullptr,
-                   /*val*/ nullptr};
-  // Store the tmpSigElts to Output before every return.
-  for (auto &BB : Entry->getBasicBlockList()) {
-    if (ReturnInst *RI = dyn_cast<ReturnInst>(BB.getTerminator())) {
-      IRBuilder<> Builder(RI);
-      Value *zero = Builder.getInt32(0);
-      for (unsigned c = 0; c<tmpSigElts.size(); c++) {
-        Value *col = tmpSigElts[c];
-        args[DXIL::OperandIndex::kStoreOutputColOpIdx] = Builder.getInt8(c);
-        for (unsigned r = 0; r < row; r++) {
-          Value *GEP =
-              Builder.CreateInBoundsGEP(col, {zero, Builder.getInt32(r)});
-          Value *V = Builder.CreateLoad(GEP);
-          args[DXIL::OperandIndex::kStoreOutputRowOpIdx] = Builder.getInt32(r);
-          args[DXIL::OperandIndex::kStoreOutputValOpIdx] = V;
-          Builder.CreateCall(StoreOutput, args);
-        }
-      }
-    }
+void DxilPreserveAllOutputs::removeOriginalOutputStores(OutputVec & outputStores)
+{
+  for (OutputWrite &write : outputStores) {
+    write.DeleteStore();
   }
 }
-#endif
+
 }
 
 char DxilPreserveAllOutputs::ID = 0;
