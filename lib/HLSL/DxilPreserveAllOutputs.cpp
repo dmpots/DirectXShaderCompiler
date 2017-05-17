@@ -39,8 +39,8 @@ public:
     return cast<ConstantInt>(id)->getLimitedValue();
   }
 
-  SignatureElement &GetSignatureElement(DxilModule &DM) const {
-    DM.GetOutputSignature().GetElement(GetSignatureID());
+  DxilSignatureElement &GetSignatureElement(DxilModule &DM) const {
+    return DM.GetOutputSignature().GetElement(GetSignatureID());
   }
 
   CallInst *GetStore() const {
@@ -82,8 +82,6 @@ public:
     , m_Columns(outputElement.GetCols())
   {
   }
-  OutputElement(const OutputElement&) = delete;
-  OutputElement& operator=(const OutputElement&) = delete;
 
   void CreateAlloca(IRBuilder<> &builder) {
     LLVMContext &context = builder.getContext();
@@ -124,7 +122,7 @@ private:
   
   Value *LoadTemp(IRBuilder<> &builder, Value *row,  Value *col) const {
     Value *GEP = CreateGEP(builder, row, col);
-    builder.CreateLoad(GEP);
+    return builder.CreateLoad(GEP);
   }
   
   void StoreOutput(IRBuilder<> &builder, DxilModule &DM, unsigned row, unsigned col) const {
@@ -209,10 +207,11 @@ DxilPreserveAllOutputs::OutputVec DxilPreserveAllOutputs::collectOutputStores(Fu
 DxilPreserveAllOutputs::OutputMap DxilPreserveAllOutputs::generateOutputMap(const OutputVec &calls, DxilModule &DM) {
   OutputMap map;
   for (const OutputWrite &output : calls) {
-    if (map.count(output.GetSignatureID()))
+    unsigned sigID = output.GetSignatureID();
+    if (map.count(sigID))
       continue;
 
-    map.emplace(output.GetSignatureElement(DM));
+    map.insert(std::make_pair(sigID, OutputElement(output.GetSignatureElement(DM))));
   }
 
   return map;
@@ -229,7 +228,7 @@ void DxilPreserveAllOutputs::createTempAllocas(OutputMap &outputMap, IRBuilder<>
 void DxilPreserveAllOutputs::insertTempOutputStores(const OutputVec &writes, const OutputMap &map, IRBuilder<>& builder)
 {
   for (const OutputWrite& outputWrite : writes) {
-    const auto &iter = map.find(outputWrite.GetSignatureID());
+    OutputMap::const_iterator iter = map.find(outputWrite.GetSignatureID());
     assert(iter != map.end());
     const OutputElement &output = iter->second;
 
