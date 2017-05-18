@@ -112,11 +112,24 @@ private:
   unsigned m_Columns;
   AllocaInst *m_Alloca;
 
+  Value *GetAsI32(IRBuilder<> &builder, Value *col) const {
+    assert(col->getType()->isIntegerTy());
+    Type *i32Ty = builder.getInt32Ty();
+    if (col->getType() != i32Ty) {
+      if (col->getType()->getScalarSizeInBits() > i32Ty->getScalarSizeInBits())
+        col = builder.CreateTrunc(col, i32Ty);
+      else
+        col = builder.CreateZExt(col, i32Ty);
+    }
+
+    return col;
+  }
+
   Value *CreateGEP(IRBuilder<> &builder, Value *row, Value *col) const {
     assert(m_Alloca);
     Constant *rowStride = ConstantInt::get(row->getType(), m_Columns);
     Value *rowOffset = builder.CreateMul(row, rowStride);
-    Value *index     = builder.CreateAdd(rowOffset, col);
+    Value *index     = builder.CreateAdd(rowOffset, GetAsI32(builder, col));
     return builder.CreateInBoundsGEP(m_Alloca, {builder.getInt32(0), index});
   }
   
