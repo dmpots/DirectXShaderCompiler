@@ -87,7 +87,7 @@ public:
     LLVMContext &context = builder.getContext();
     Type *elementType = m_OutputElement.GetCompType().GetLLVMType(context);
     Type *allocaType = ArrayType::get(elementType, NumElements());
-    m_Alloca = builder.CreateAlloca(allocaType);
+    m_Alloca = builder.CreateAlloca(allocaType, nullptr, m_OutputElement.GetName());
   }
 
   void StoreTemp(IRBuilder<> &builder, Value *row, Value *col, Value *value) const {
