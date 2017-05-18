@@ -2943,6 +2943,7 @@ TEST_F(CompilerTest, CodeGenPreciseOnCallNot) {
 
 TEST_F(CompilerTest, CodeGenPreserveAllOutputs) {
   CodeGenTestCheck(L"preserve_all_outputs_1.hlsl");
+  CodeGenTestCheck(L"preserve_all_outputs_2.hlsl");
 }
 
 TEST_F(CompilerTest, CodeGenRaceCond2) {
