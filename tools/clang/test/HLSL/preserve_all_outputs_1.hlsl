@@ -1,23 +1,10 @@
 // RUN: %dxc -Emain -Tvs_6_0 %s | %opt -S -hlsl-dxil-preserve-all-outputs | %FileCheck %s
 
-// CHECK-NOT: storeOutput.f32(i32 5, i32 0, i32 %i
-// CHECK: storeOutput.f32(i32 5, i32 0, i32 0
-// CHECK: storeOutput.f32(i32 5, i32 0, i32 1
-// CHECK: storeOutput.f32(i32 5, i32 0, i32 2
-// CHECK: storeOutput.f32(i32 5, i32 0, i32 3
-// CHECK: storeOutput.f32(i32 5, i32 0, i32 4
-// CHECK: storeOutput.f32(i32 5, i32 0, i32 5
-// CHECK: storeOutput.f32(i32 5, i32 0, i32 6
-// CHECK: storeOutput.f32(i32 5, i32 0, i32 7
+// CHECK: call void @dx.op.storeOutput.f32(i32 5, i32 0, i32 0, i8 0,
+// CHECK: call void @dx.op.storeOutput.f32(i32 5, i32 0, i32 1, i8 0,
+// CHECK: call void @dx.op.storeOutput.f32(i32 5, i32 0, i32 2, i8 0,
 
-int  count;
-float4 c[16];
-
-float4 main(out float o[8] : I, float4 pos: POS) : SV_POSITION {
-
-    for (uint i=0;i<count;i++)
-        o[i] = c[i].x;
-
-    return pos;
+void main(out float a[3] : A, float4 pos : SV_POSITION)
+{
+    a[1] = 1.0;
 }
-
