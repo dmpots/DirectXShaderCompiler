@@ -1,7 +1,7 @@
 // RUN: %dxc -E main -T hs_6_0  %s | %opt -S -hlsl-dxil-preserve-all-outputs | %FileCheck %s
 
 // CHECK: alloca [3 x float]
-// CHECK: alloca [1 x float]
+// CHECK: alloca float
 // CHECK: alloca [8 x float]
 
 // CHECK-NOT: storePatchConstant.f32(i32 106, i32 2, i32 %i

@@ -89,13 +89,17 @@ public:
   void CreateAlloca(IRBuilder<> &builder) {
     LLVMContext &context = builder.getContext();
     Type *elementType = m_OutputElement.GetCompType().GetLLVMType(context);
-    Type *allocaType = ArrayType::get(elementType, NumElements());
+    Type *allocaType = nullptr;
+    if (IsSingleElement())
+      allocaType = elementType;
+    else
+      allocaType = ArrayType::get(elementType, NumElements());
     m_Alloca = builder.CreateAlloca(allocaType, nullptr, m_OutputElement.GetName());
   }
 
   void StoreTemp(IRBuilder<> &builder, Value *row, Value *col, Value *value) const {
-    Value *GEP = CreateGEP(builder, row, col);
-    builder.CreateStore(value, GEP);
+    Value *addr = GetTempAddr(builder, row, col);
+    builder.CreateStore(value, addr);
   }
 
   void StoreOutput(IRBuilder<> &builder, DxilModule &DM) const {
@@ -115,6 +119,10 @@ private:
   unsigned m_Columns;
   AllocaInst *m_Alloca;
 
+  bool IsSingleElement() const {
+    return m_Rows == 1 && m_Columns == 1;
+  }
+
   Value *GetAsI32(IRBuilder<> &builder, Value *col) const {
     assert(col->getType()->isIntegerTy());
     Type *i32Ty = builder.getInt32Ty();
@@ -128,6 +136,14 @@ private:
     return col;
   }
 
+  Value *GetTempAddr(IRBuilder<> &builder, Value *row, Value *col) const {
+    // Load directly from alloca for non-array output.
+    if (IsSingleElement())
+      return m_Alloca;
+    else
+      return CreateGEP(builder, row, col);
+  }
+
   Value *CreateGEP(IRBuilder<> &builder, Value *row, Value *col) const {
     assert(m_Alloca);
     Constant *rowStride = ConstantInt::get(row->getType(), m_Columns);
@@ -137,8 +153,8 @@ private:
   }
   
   Value *LoadTemp(IRBuilder<> &builder, Value *row,  Value *col) const {
-    Value *GEP = CreateGEP(builder, row, col);
-    return builder.CreateLoad(GEP);
+    Value *addr = GetTempAddr(builder, row, col);
+    return builder.CreateLoad(addr);
   }
   
   void StoreOutput(IRBuilder<> &builder, DxilModule &DM, unsigned row, unsigned col) const {
