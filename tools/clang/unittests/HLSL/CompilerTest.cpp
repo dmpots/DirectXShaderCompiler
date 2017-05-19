@@ -2948,6 +2948,7 @@ TEST_F(CompilerTest, CodeGenPreserveAllOutputs) {
   CodeGenTestCheck(L"preserve_all_outputs_4.hlsl");
   CodeGenTestCheck(L"preserve_all_outputs_5.hlsl");
   CodeGenTestCheck(L"preserve_all_outputs_6.hlsl");
+  CodeGenTestCheck(L"preserve_all_outputs_7.hlsl");
 }
 
 TEST_F(CompilerTest, CodeGenRaceCond2) {

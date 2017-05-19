@@ -40,7 +40,10 @@ public:
   }
 
   DxilSignatureElement &GetSignatureElement(DxilModule &DM) const {
-    return DM.GetOutputSignature().GetElement(GetSignatureID());
+    if (DxilInst_StorePatchConstant(m_Call))
+      return DM.GetPatchConstantSignature().GetElement(GetSignatureID());
+    else
+      return DM.GetOutputSignature().GetElement(GetSignatureID());
   }
 
   CallInst *GetStore() const {
