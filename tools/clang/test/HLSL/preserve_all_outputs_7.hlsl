@@ -1,8 +1,8 @@
 // RUN: %dxc -E main -T hs_6_0  %s | %opt -S -hlsl-dxil-preserve-all-outputs | %FileCheck %s
 
-// CHECK:  %SV_TessFactor = alloca [3 x float]
-// CHECK:  %SV_InsideTessFactor = alloca [1 x float]
-// CHECK:  %CCC = alloca [8 x float]
+// CHECK: alloca [3 x float]
+// CHECK: alloca [1 x float]
+// CHECK: alloca [8 x float]
 
 // CHECK-NOT: storePatchConstant.f32(i32 106, i32 2, i32 %i
 
