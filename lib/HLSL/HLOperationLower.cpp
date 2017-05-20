@@ -279,8 +279,7 @@ private:
 
   Value *CreateResourceForCbPtr(GetElementPtrInst *CbPtr, GlobalVariable *CbGV,
                                 MDNode *MD) {
-    Type *CbTy = CbPtr->getPointerOperandType();
-    DXASSERT_NOMSG(CbTy == CbGV->getType());
+    DXASSERT_NOMSG(CbPtr->getPointerOperandType() == CbGV->getType());
 
     gep_type_iterator GEPIt = gep_type_begin(CbPtr), E = gep_type_end(CbPtr);
     unsigned i = 0;

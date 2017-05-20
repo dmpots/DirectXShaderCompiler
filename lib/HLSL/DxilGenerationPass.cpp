@@ -1171,8 +1171,7 @@ void GenerateInputOutputUserCall(InputOutputAccessInfo &info, Value *undefVertex
                               bI1Cast);
       } else {
         Value *V = stInst->getValueOperand();
-        Type *Ty = V->getType();
-        DXASSERT(Ty == Ty->getScalarType() && !Ty->isAggregateType(),
+        DXASSERT(V->getType() == Ty->getScalarType() && !Ty->isAggregateType(),
                  "only support scalar here");
 
         if (ConstantInt *ColIdx = dyn_cast<ConstantInt>(info.vectorIdx)) {

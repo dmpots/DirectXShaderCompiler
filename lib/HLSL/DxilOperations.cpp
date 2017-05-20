@@ -428,12 +428,7 @@ OP::OP(LLVMContext &Ctx, Module *pModule)
 void OP::RefreshCache(llvm::Module *pModule) {
   for (Function &F : pModule->functions()) {
     if (OP::IsDxilOpFunc(&F) && !F.user_empty()) {
-      CallInst *CI = cast<CallInst>(*F.user_begin());
-      OpCode OpCode = OP::GetDxilOpFuncCallInst(CI);
-      Type *pOverloadType = OP::GetOverloadType(OpCode, &F);
-      Function *OpFunc = GetOpFunc(OpCode, pOverloadType);
-      DXASSERT_NOMSG(OpFunc == &F);
-
+      DXASSERT_NOMSG(GetOpFunc(OP::GetDxilOpFuncCallInst(cast<CallInst>(*F.user_begin())), OP::GetOverloadType(OpCode, &F)) == &F);
     }
   }
 }
